@@ -49,6 +49,7 @@ if docker buildx version >/dev/null 2>&1; then
     docker buildx build \
         --platform="${PLATFORM}" \
         --build-arg BASE_IMAGE="${BASE_IMAGE}" \
+        --load \
         -t "${IMAGE_NAME}:${IMAGE_TAG}" \
         -f "${DOCKERFILE}" \
         . 2>&1 | tee docker_build.log

@@ -42,6 +42,104 @@ with warnings.catch_warnings():
     from deeplab.utils.xml_to_json import convert_xml_json
     from deeplab.progress_helper import ProgressHelper
 
+
+def _normalize_var_name(name):
+    """
+    Normalize TF2 variable names by removing duplicate BatchNorm scopes.
+    
+    TF2 can create duplicate scopes like:
+      aspp0/BatchNorm/aspp0/BatchNorm/beta:0 -> aspp0/BatchNorm/beta
+      xception_65/.../BatchNorm/xception_65/.../BatchNorm/beta:0 -> xception_65/.../BatchNorm/beta
+    """
+    # Strip :0 suffix
+    if name.endswith(':0'):
+        name = name[:-2]
+    
+    # Check for duplicate BatchNorm scopes
+    if '/BatchNorm/' in name:
+        bn_indices = []
+        idx = 0
+        while True:
+            idx = name.find('/BatchNorm/', idx)
+            if idx == -1:
+                break
+            bn_indices.append(idx)
+            idx += 1
+        
+        # If we have exactly 2 occurrences, check for duplication
+        if len(bn_indices) == 2:
+            first_bn = bn_indices[0]
+            second_bn = bn_indices[1]
+            
+            prefix = name[:first_bn]
+            middle = name[first_bn + 11:second_bn]
+            suffix = name[second_bn + 11:]
+            
+            if middle == prefix:
+                return prefix + '/BatchNorm/' + suffix
+    
+    return name
+
+
+def _build_checkpoint_var_mapping(checkpoint_path, graph_variables):
+    """
+    Build a mapping from checkpoint variable names to graph variables.
+    
+    This handles cases where:
+    1. Checkpoint has simple names (e.g., aspp0/BatchNorm/beta)
+    2. Graph has duplicate scopes (e.g., aspp0/BatchNorm/aspp0/BatchNorm/beta)
+    
+    Returns a dict mapping {checkpoint_name: graph_variable}
+    """
+    # Read checkpoint variable names and shapes
+    try:
+        reader = tf.compat.v1.train.NewCheckpointReader(checkpoint_path)
+        ckpt_var_to_shape = reader.get_variable_to_shape_map()
+    except Exception as e:
+        tf.compat.v1.logging.warning(f"Could not read checkpoint for mapping: {e}")
+        return None
+    
+    # Build normalized name -> graph variable mapping
+    graph_var_by_normalized = {}
+    for var in graph_variables:
+        norm_name = _normalize_var_name(var.name)
+        if norm_name not in graph_var_by_normalized:
+            graph_var_by_normalized[norm_name] = var
+    
+    # Build checkpoint name -> graph variable mapping
+    var_map = {}
+    matched = 0
+    unmatched = []
+    
+    for ckpt_name, ckpt_shape in ckpt_var_to_shape.items():
+        # Skip optimizer variables
+        if any(x in ckpt_name for x in ['/Momentum', '/Adam', '/RMSProp', 'global_step']):
+            continue
+        
+        # Try to find matching graph variable
+        norm_ckpt_name = _normalize_var_name(ckpt_name)
+        
+        if norm_ckpt_name in graph_var_by_normalized:
+            graph_var = graph_var_by_normalized[norm_ckpt_name]
+            graph_shape = tuple(graph_var.shape.as_list())
+            
+            # Verify shapes match
+            if tuple(ckpt_shape) == graph_shape:
+                var_map[ckpt_name] = graph_var
+                matched += 1
+            else:
+                unmatched.append(f"{ckpt_name} (shape mismatch: ckpt={ckpt_shape}, graph={graph_shape})")
+        else:
+            unmatched.append(f"{ckpt_name} (no graph match)")
+    
+    tf.compat.v1.logging.info(f"Checkpoint mapping: {matched} matched, {len(unmatched)} unmatched")
+    
+    if matched == 0:
+        tf.compat.v1.logging.warning("No variables matched! Falling back to default restoration.")
+        return None
+    
+    return var_map
+
 flags = tf.compat.v1.flags
 
 FLAGS = flags.FLAGS
@@ -248,12 +346,7 @@ def main(unused_argv):
           checkpoint_path = FLAGS.checkpoint_dir
           config = tf.compat.v1.ConfigProto()
           config.gpu_options.allow_growth = True
-          scaffold = tf.compat.v1.train.Scaffold(init_op=tf.compat.v1.global_variables_initializer())
-          session_creator = tf.compat.v1.train.ChiefSessionCreator(
-                scaffold=scaffold,
-                master=FLAGS.master,
-                config=config,
-                checkpoint_filename_with_path=checkpoint_path)
+          
           for slide in slides:
               print('Working on: [{}]'.format(slide))
 
@@ -302,6 +395,34 @@ def main(unused_argv):
               tf.compat.v1.train.get_or_create_global_step()
               if FLAGS.quantize_delay_step >= 0:
                   tf.contrib.quantization.create_eval_graph()
+
+              # Build variable name mapping for checkpoint restoration
+              graph_vars = tf.compat.v1.global_variables()
+              var_map = _build_checkpoint_var_mapping(checkpoint_path, graph_vars)
+              
+              if var_map:
+                  # Use custom saver with variable name mapping
+                  restore_saver = tf.compat.v1.train.Saver(var_list=var_map)
+                  
+                  def init_fn(scaffold, session):
+                      restore_saver.restore(session, checkpoint_path)
+                  
+                  scaffold = tf.compat.v1.train.Scaffold(
+                      init_op=tf.compat.v1.global_variables_initializer(),
+                      init_fn=init_fn
+                  )
+              else:
+                  # Fall back to default restoration
+                  scaffold = tf.compat.v1.train.Scaffold(
+                      init_op=tf.compat.v1.global_variables_initializer()
+                  )
+              
+              session_creator = tf.compat.v1.train.ChiefSessionCreator(
+                  scaffold=scaffold,
+                  master=FLAGS.master,
+                  config=config,
+                  checkpoint_filename_with_path=checkpoint_path if not var_map else None
+              )
 
               with tf.compat.v1.train.MonitoredSession(
                   session_creator=session_creator, hooks=None) as sess:

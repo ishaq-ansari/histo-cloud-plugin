@@ -11,7 +11,7 @@
   <parameters>
     <label>IO</label>
     <description>Input/output parameters</description>
-    <image>
+    <image reference="_girder_id_">
       <name>inputImageFile</name>
       <label>Input Image</label>
       <description>Input image</description>
@@ -24,13 +24,6 @@
       <channel>input</channel>
       <index>1</index>
       <description>A zip file containing Tensorflow model-files and metadata for the deeplab segmentation network</description>
-    </file>
-    <file fileExtensions=".json" reference="inputImageFile">
-      <name>outputAnnotationFile</name>
-      <label>Output Glomeruli Annotation File</label>
-      <channel>output</channel>
-      <index>3</index>
-      <description>Output annotation file (*.json) containing glomerular annotations</description>
     </file>
   </parameters>
   <parameters advanced="true">
@@ -116,23 +109,16 @@
     <description>Optional parameters for uploading annotations to Girder/DSA</description>
     <string>
       <name>girderApiUrl</name>
+      <longflag>api-url</longflag>
       <label>Girder API URL</label>
-      <description>The base URL of the Girder API (e.g., http://localhost:8080/api/v1). If provided with girderToken, annotations will be uploaded to Girder.</description>
-      <longflag>girderApiUrl</longflag>
+      <description>A Girder API URL (e.g., https://girder.example.com:443/api/v1)</description>
       <default></default>
     </string>
     <string>
       <name>girderToken</name>
+      <longflag>token</longflag>
       <label>Girder API Token</label>
-      <description>Authentication token for Girder API access. Required if girderApiUrl is provided.</description>
-      <longflag>girderToken</longflag>
-      <default></default>
-    </string>
-    <string>
-      <name>girderItemId</name>
-      <label>Girder Item ID</label>
-      <description>The Girder item ID to upload annotations to. If not provided, will attempt to resolve from input image.</description>
-      <longflag>girderItemId</longflag>
+      <description>A Girder token</description>
       <default></default>
     </string>
   </parameters>
