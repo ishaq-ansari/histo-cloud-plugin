@@ -4,8 +4,8 @@
 set -e
 
 # Configuration
-IMAGE_NAME="histocloud-tf2"
-IMAGE_TAG="GlomSegmentation"
+IMAGE_NAME="ishaqansari/histocloud-tf2"
+IMAGE_TAG="GlomSegmentation_v1"
 DOCKERFILE="Dockerfile"
 PLATFORM=${PLATFORM:-linux/amd64}
 

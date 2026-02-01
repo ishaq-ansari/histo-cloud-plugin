@@ -27,9 +27,15 @@ def main(args):
     cwd = os.getcwd()
     print(cwd)
 
+    # Ensure output directory exists
+    output_dir = os.path.dirname(args.outputAnnotationFile)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        print("Created output directory: {}".format(output_dir))
+
     tmp = args.outputAnnotationFile
-    tmp = os.path.dirname(tmp)
-    print(tmp)
+    tmp = os.path.dirname(tmp) if os.path.dirname(tmp) else '.'
+    print("Working directory: {}".format(tmp))
 
     # move to data folder and extract models
     os.chdir(tmp)
@@ -63,6 +69,16 @@ def main(args):
     sys.stdout.flush()
     os.system(cmd)
 
+    # Verify the output file was created
+    if os.path.exists(args.outputAnnotationFile):
+        print("\nAnnotation file successfully created: {}".format(args.outputAnnotationFile))
+        # Show file size for confirmation
+        file_size = os.path.getsize(args.outputAnnotationFile)
+        print("File size: {} bytes".format(file_size))
+    else:
+        print("ERROR: Output annotation file was not created: {}".format(args.outputAnnotationFile))
+    
+    print("\nSegmentation complete. Annotations will be uploaded automatically by slicer_cli_web.")
 
 if __name__ == "__main__":
     main(CLIArgumentParser().parse_args())
