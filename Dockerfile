@@ -98,6 +98,8 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir \
     'large-image[memcached]' \
     large-image-source-tiff \
+    large-image-source-openslide \
+    large-image-source-vips \
     large-image-source-pil \
     girder-slicer-cli-web \
     girder-client \
@@ -113,7 +115,18 @@ RUN pip install --no-cache-dir \
     distributed
 
 # Force NumPy 1.x after all other dependencies (TensorFlow 2.15 is incompatible with NumPy 2.x)
+# RUN pip install --no-cache-dir --force-reinstall 'numpy<2.0,>=1.23.5'
+
+# Fix numcodecs/zarr compatibility issue for TIFF support
+# The "deprecated" import error occurs with mismatched zarr/numcodecs versions
+# Pin compatible versions to avoid the blosc.pyx "cannot import name deprecated" error
+RUN pip install --no-cache-dir --force-reinstall 'numcodecs==0.11.0' 'zarr==2.13.6'
+
+# Force NumPy 1.x again after numcodecs/zarr (they may have pulled in NumPy 2.x)
 RUN pip install --no-cache-dir --force-reinstall 'numpy<2.0,>=1.23.5'
+
+# Preload libstdc++ to fix mapnik TLS block error
+ENV LD_PRELOAD=/lib/x86_64-linux-gnu/libstdc++.so.6
 
 
 # ---------------------------

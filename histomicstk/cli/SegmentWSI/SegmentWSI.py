@@ -110,8 +110,10 @@ def main(args):
             print(f"Successfully uploaded annotation to Girder item {item_id}")
         except Exception as e:
             print(f"Error uploading annotation to Girder: {e}")
+            sys.exit(1)
     else:
         print("ERROR: Output annotation file was not created: {}".format(output_annotation_file))
+        sys.exit(1)
     
     print("\nSegmentation complete.")
 

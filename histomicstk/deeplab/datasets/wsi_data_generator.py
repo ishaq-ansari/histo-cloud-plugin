@@ -60,7 +60,7 @@ class Dataset(object):
                include_background_prob = 0,
                augment_prob = 0,
                num_of_classes = None,
-               wsi_ext=['.svs', '.ndpi', '.scn', '.czi','.ome.tif'],
+               wsi_ext=['.svs', '.ndpi', '.scn', '.czi', '.ome.tif', '.tif', '.tiff'],
                min_resize_value=None,
                max_resize_value=None,
                resize_factor=None,
@@ -211,7 +211,24 @@ class Dataset(object):
 
     # open slide once globally for efficency
     import large_image
-    wsi = large_image.getTileSource(wsi_path)
+    # Prefer openslide/tiff sources, avoid tifffile which has zarr/numcodecs issues
+    try:
+        wsi = large_image.getTileSource(wsi_path)
+    except Exception as e:
+        # Fallback: try with explicit source preference
+        print(f"Warning: Failed to auto-detect tile source: {e}")
+        print("Attempting with preferred sources...")
+        for source_name in ['openslide', 'tiff', 'vips', 'pil']:
+            try:
+                source_module = __import__(f'large_image_source_{source_name}')
+                wsi = source_module.open(wsi_path)
+                print(f"Successfully opened with {source_name} source")
+                break
+            except Exception as source_e:
+                print(f"Failed with {source_name}: {source_e}")
+                continue
+        else:
+            raise Exception(f"Could not open {wsi_path} with any available tile source")
 
     # get grid of start points of patches
     points, length, tissue_offset, tissue_size = get_grid_list(wsi_path, self.crop_size, self.downsample, self.tile_step, wsi)
