@@ -214,6 +214,12 @@ def main(unused_argv):
   with ProgressHelper('Segment WSI') as helper:
       os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
       os.environ["CUDA_VISIBLE_DEVICES"]=FLAGS.gpu
+      # Use CUDA async allocator so GPU memory is returned to the CUDA pool
+      # when TF releases it, allowing multiple simultaneous jobs to share
+      # the same GPU without one job exhausting memory for others.
+      # (PyTorch/Detectron2 uses this mechanism natively, which is why the
+      # Multi-Compartment-Segmentation plugin handles concurrent jobs fine.)
+      os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 
       tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 

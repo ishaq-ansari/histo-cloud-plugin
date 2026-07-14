@@ -130,6 +130,19 @@ def get_patch_from_points(filename, point, patch_size, downsample=1, wsi=None, c
 
     # remove any excess
     region = region[:patch_size,:patch_size,:3]
+
+    # Pad with zeros when the patch is near a slide boundary and getRegion
+    # returned a smaller region (e.g. top=-544 clips to y=0, yielding fewer rows).
+    # Content is placed at the correct offset so spatial alignment is preserved.
+    h, w = region.shape[0], region.shape[1]
+    if h < patch_size or w < patch_size:
+        padded = np.zeros((patch_size, patch_size, 3), dtype=region.dtype)
+        # convert negative base-pixel offsets to output-resolution offsets
+        top_pad = min(int(max(0, -point[1]) / downsample), patch_size - h)
+        left_pad = min(int(max(0, -point[0]) / downsample), patch_size - w)
+        padded[top_pad:top_pad + h, left_pad:left_pad + w] = region
+        region = padded
+
     assert region.shape == (patch_size,patch_size,3), 'The extracted wsi region [{}] is the wrong size: [{}] | left=[{}] top=[{}] width/height=[{}] | class_num: [{}]'.format(region.shape, filename, point[0], point[1], scaled_patch_size, class_num)
 
     # scale to [-1,1]
