@@ -178,11 +178,11 @@ def _process_batch(sess, slide_mask, slide_heatmap, offset, semantic_predictions
     image_filename = image_names[i].decode()
 
     # populate wsi mask
-    Ystart = float(image_filename.split('-')[-2]) - offset['Y']
+    Ystart = float(image_filename.split('|')[-2]) - offset['Y']
     Ystart /= downsample*extra_downsample
     Ystart = int(round(Ystart))+border
 
-    Xstart = float(image_filename.split('-')[-3]) - offset['X']
+    Xstart = float(image_filename.split('|')[-3]) - offset['X']
     Xstart /= downsample*extra_downsample
     Xstart = int(round(Xstart))+border
 

@@ -111,7 +111,7 @@ def get_patch_from_points(filename, point, patch_size, patch_width, level, downs
     # region = scale_patch(region)
 
     # region = np.transpose(region, (2,0,1)) # [CWH]
-    imageID = '{}-{}-{}-{}'.format(base_name.split('/')[-1], point[0], point[1], downsample)
+    imageID = '{}|{}|{}|{}'.format(base_name.split('/')[-1], point[0], point[1], downsample)
 
     # create zeros mask to pass - NOT USED LATER
     mask = np.zeros([patch_size,patch_size], dtype=np.uint8)
